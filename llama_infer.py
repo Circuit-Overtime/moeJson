@@ -153,6 +153,6 @@ def run_moe(query: str):
 if __name__ == "__main__":
     query = "What is the capital of France?"
     
-    print(f"Query: {query}")
+    # print(f"Query: {query}")
     out = run_moe(query)
     print(json.dumps(out, indent=2))
