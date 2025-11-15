@@ -1,5 +1,4 @@
 from multiprocessing.managers import BaseManager
-from multiprocessing.managers import BaseManager
 from llama_cpp import Llama
 import json
 import sys
@@ -10,44 +9,43 @@ class ModelManager:
         self.load_model()
     
     def load_model(self):
-        print("Loading TinyLlama model optimized for Tesla T4...")
+        print("Loading Phi-3.5-mini-instruct optimized for Tesla T4...")
         self.llm = Llama(
-            model_path="models/tinyllama-1.1b-chat-v1.0.Q4_K_M.gguf",
-            n_ctx=1024,
-            n_threads=4,  # Reduced threads for GPU focus
-            n_gpu_layers=-1,  # Move ALL layers to GPU (T4 has 16GB VRAM)
-            n_batch=512,  # Larger batch size for T4
-            use_mmap=True,  # Memory mapping for faster loading
-            use_mlock=True,  # Lock model in RAM
-            rope_scaling_type=1,  # Enable RoPE scaling
-            rope_freq_base=10000.0,
+            model_path="models/Phi-3.5-mini-instruct-Q8_0.gguf",
+            n_ctx=2048,  # Phi-3.5 works better with larger context
+            n_threads=2,  # Minimal CPU threads - focus on GPU
+            n_gpu_layers=-1,  # ALL layers to GPU
+            n_batch=2048,  # Max batch size for T4 throughput
+            use_mmap=True,
+            use_mlock=True,
             verbose=False,
-            # GPU-specific optimizations
-            split_mode=1,  # Split by layer for multi-GPU (even single GPU benefits)
-            main_gpu=0,  # Use first GPU
-            tensor_split=None,  # Let it auto-distribute
-            low_vram=False,  # T4 has plenty of VRAM
+            # GPU optimizations for max speed
+            main_gpu=0,
+            low_vram=False,
+            # Flash attention for speed (if available)
+            flash_attn=True,
         )
-        print("Model loaded successfully with GPU acceleration!")
+        print("Phi-3.5-mini loaded with maximum GPU acceleration!")
     
-    def inference(self, prompt, max_tokens=250, temperature=0.2, stop=None):
+    def inference(self, prompt, max_tokens=150, temperature=0.1, stop=None):
         if self.llm is None:
             return {"error": "Model not loaded"}
         
         try:
+            # Ultra-fast inference settings
             response = self.llm(
                 prompt,
                 max_tokens=max_tokens,
-                temperature=temperature,
-                stop=stop or ["###", "\n\n"],
-                echo=False,  
-                top_p=0.95,  # Slightly higher for better quality
-                top_k=40,
-                repeat_penalty=1.1,  # Prevent repetition
-                # Performance optimizations
-                stream=False,  # No streaming for faster batch processing
-                frequency_penalty=0.0,
-                presence_penalty=0.0,
+                temperature=temperature,  # Lower temp = faster sampling
+                stop=stop or ["###", "\n\n", "<|end|>", "<|endoftext|>"],
+                echo=False,
+                # Minimal sampling for max speed
+                top_p=0.8,  # Reduced for speed
+                top_k=20,   # Reduced for speed
+                repeat_penalty=1.05,  # Minimal penalty
+                stream=False,
+                # Disable expensive features
+                seed=-1,  # Random seed (faster)
             )
             return response["choices"][0]["text"].strip()
         except Exception as e:
@@ -63,13 +61,13 @@ class ModelServer(BaseManager):
 ModelServer.register('get_model', callable=lambda: model_manager)
 
 if __name__ == "__main__":
-    print("Starting Model Server on port 7002...")
+    print("Starting Phi-3.5 Model Server on port 7002...")
     
     server = ModelServer(address=('localhost', 7002), authkey=b'moe_model_key')
     server_obj = server.get_server()
     
     print("Model Server ready! Listening on localhost:7002")
-    print("GPU acceleration enabled for Tesla T4")
+    print("Phi-3.5-mini with maximum Tesla T4 acceleration")
     try:
         server_obj.serve_forever()
     except KeyboardInterrupt:

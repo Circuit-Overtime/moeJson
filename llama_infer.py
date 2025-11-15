@@ -20,56 +20,46 @@ class ModelClient:
             self.manager = ModelServer(address=('localhost', 7002), authkey=b'moe_model_key')
             self.manager.connect()
             self.model = self.manager.get_model()
-            print("Connected to model server successfully!")
+            print("Connected to Phi-3.5 model server successfully!")
         except Exception as e:
             print(f"Failed to connect to model server: {e}")
             print("Make sure model_server.py is running!")
             sys.exit(1)
     
-    def inference(self, prompt, max_tokens=200, temperature=0.2, stop=None):
+    def inference(self, prompt, max_tokens=150, temperature=0.1, stop=None):
         return self.model.inference(prompt, max_tokens, temperature, stop)
 
 # Global client instance
 client = ModelClient()
 
-SYSTEM_MOE_PROMPT = """
-You are a Mixture-of-Experts (MOE) decision router.
-
-Your job is NOT to answer the user's question.
-Your ONLY job is to decide *which tools must be used* and provide the PROMPT/QUERY for each tool.
+SYSTEM_MOE_PROMPT = """You are a router that decides which tools to use and provides prompts for each tool.
 
 Available tools:
-- text  → Use when the model can fully answer from internal knowledge. Provide the PROMPT for text generation.
-- image → Use when a visual output is required. Provide the PROMPT for image generation.
-- audio → Use when spoken or sound output is requested. Provide the PROMPT for audio generation.
-- web   → Use only if the question *clearly requires* real-time, updated, unknown, or external information. Provide the SEARCH QUERY for web search.
+- text: For answering with internal knowledge
+- image: For visual generation  
+- audio: For sound generation
+- web: For real-time/external information
 
-IMPORTANT: For each tool, you must provide the PROMPT/QUERY that will be sent to that tool, NOT the answer itself.
-
-You must ALWAYS output STRICT VALID JSON in the following format:
-
+Output ONLY valid JSON:
 {
   "tasks": {
-    "text": "<prompt for text generation or null>",
-    "image": "<prompt for image generation or null>", 
-    "audio": "<prompt for audio generation or null>",
-    "web": "<search query for web search or null>"
+    "text": "<prompt or null>",
+    "image": "<prompt or null>", 
+    "audio": "<prompt or null>",
+    "web": "<search query or null>"
   },
-  "final_decision": "<one of: text | image | audio | web | combination>"
+  "final_decision": "<text|image|audio|web|combination>"
 }
 
 Examples:
-- User asks "What is AI?" → text: "Explain what artificial intelligence is"
-- User asks "Draw a cat" → image: "A cute cat sitting on a windowsill"
-- User asks "Latest news about Tesla stock" → web: "Tesla stock news today latest updates"
+- "What is AI?" → text: "Explain artificial intelligence"
+- "Draw a cat" → image: "A cute cat"
+- "Tesla stock news" → web: "Tesla stock latest news"
 
 Rules:
-- If multiple tools are needed, set final_decision to "combination".
-- Use null when a field is not required.
-- NEVER provide answers, explanations, reasoning, disclaimers, or commentary.
-- You ONLY output JSON with PROMPTS/QUERIES for tools. No extra text.
-- Always provide the prompt that should be sent to each tool, not the final answer.
-"""
+- Provide PROMPTS for tools, not answers
+- Use null when tool not needed
+- Output JSON only, no extra text"""
 
 # ---------- JSON REPAIR ----------
 def fix_json(raw_output):
@@ -78,6 +68,14 @@ def fix_json(raw_output):
         return '{"tasks":{"text":null,"image":null,"audio":null,"web":null},"final_decision":"text"}'
 
     raw_output = raw_output.strip()
+    
+    # Remove any text before first {
+    if '{' in raw_output:
+        raw_output = raw_output[raw_output.find('{'):]
+    
+    # Remove any text after last }
+    if '}' in raw_output:
+        raw_output = raw_output[:raw_output.rfind('}') + 1]
 
     # Force starts/ends if missing
     if not raw_output.startswith('{'):
@@ -93,27 +91,24 @@ def run_moe(query: str):
     query   → user text
     """
     
-    # Construct the prompt for the model
-    prompt = f"""
-### System:
-{SYSTEM_MOE_PROMPT}
-
-### User Query:
-{query}
-
-### Assistant (JSON only):
+    # Phi-3.5 chat format for maximum speed and accuracy
+    prompt = f"""<|system|>
+{SYSTEM_MOE_PROMPT}<|end|>
+<|user|>
+{query}<|end|>
+<|assistant|>
 """
 
-    print(f"\nDEBUG: Sending prompt:\n{prompt}\n")
+    # print(f"\nDEBUG: Sending Phi-3.5 formatted prompt:\n{prompt}\n")
 
     raw = client.inference(
         prompt,
-        max_tokens=200,
-        temperature=0.2,
-        stop=["###", "\n\n"]
+        max_tokens=150,  # Reduced for speed
+        temperature=0.1,  # Lower for faster, more deterministic sampling
+        stop=["<|end|>", "<|endoftext|>", "###", "\n\n"]
     )
 
-    print(f"DEBUG: Raw response: {repr(raw)}")
+    # print(f"DEBUG: Raw response: {repr(raw)}")
 
     if isinstance(raw, dict) and "error" in raw:
         return raw
@@ -128,7 +123,7 @@ def run_moe(query: str):
                 "web": None
             },
             "final_decision": "text",
-            "error": "Empty output from model"
+            "error": "Empty output from Phi-3.5 model"
         }
 
     fixed = fix_json(raw)
