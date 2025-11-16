@@ -1,0 +1,18 @@
+services:
+  moejson:
+    build: .
+    ports:
+      - "7002:7002"
+      - "7003:7003"
+      - "9000:9000"
+    volumes:
+      - ./models:/app/models
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s

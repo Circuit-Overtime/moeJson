@@ -80,12 +80,17 @@ async def infer():
         return jsonify({"error": "Invalid JSON response from model"}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route("/health", methods=["GET"])
+async def health():
+    return jsonify({"status": "ok", "models_connected": len(models)}), 200
     
 async def trial_run():
     test_prompt = "Give me a picture of monalisa in the style of van gogh "
     model = get_available_model()
     response = model.fast_inference(test_prompt)
     print("Trial run response:", response)
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=9000, workers=10)
