@@ -2,7 +2,7 @@ from quart import Quart, request, jsonify
 from multiprocessing.managers import BaseManager
 import asyncio
 import json
-
+import random
 
 app = Quart(__name__)
 
@@ -11,9 +11,28 @@ class ModelClient(BaseManager):
 
 ModelClient.register("get_model")
 
-manager = ModelClient(address=("localhost", 7002), authkey=b"moe_model_key")
-manager.connect()
-model = manager.get_model()
+# Multiple model servers
+MODEL_SERVERS = [
+    {"address": ("localhost", 7002), "authkey": b"moe_model_key"},
+    {"address": ("localhost", 7003), "authkey": b"moe_model_key"},
+]
+
+models = []
+for server_config in MODEL_SERVERS:
+    try:
+        manager = ModelClient(address=server_config["address"], authkey=server_config["authkey"])
+        manager.connect()
+        models.append(manager.get_model())
+        print(f"Connected to model server at {server_config['address']}")
+    except Exception as e:
+        print(f"Failed to connect to {server_config['address']}: {e}")
+
+if not models:
+    raise Exception("No model servers available")
+
+def get_available_model():
+    """Simple round-robin load balancing"""
+    return random.choice(models)
 
 def count_words(text):
     return len(text.split())
@@ -34,6 +53,8 @@ async def generate():
         if word_count > 100:
             return jsonify({"error": f"Prompt exceeds 100 words (current: {word_count})"}), 400
         
+        # Get an available model instance
+        model = get_available_model()
         response = model.fast_inference(prompt)
         
         result = json.loads(response)

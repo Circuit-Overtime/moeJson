@@ -1,5 +1,6 @@
 from multiprocessing.managers import BaseManager
 from llama_cpp import Llama
+import sys
 
 SYSTEM_MOE_PROMPT = """You are a router that decides which tools to use and provides prompts for each tool.
 - text: For answering with internal knowledge
@@ -36,7 +37,7 @@ class ModelManager:
                         n_ctx=2048,
                         n_gpu_layers=-1,
                         n_threads=2,
-                        n_batch=2048,
+                        n_batch=1024,  # Reduced for multiple instances
                         use_mlock=True,
                         use_mmap=True,
                         flash_attn=True,
@@ -79,5 +80,7 @@ class ModelServer(BaseManager):
 ModelServer.register("get_model", callable=lambda: model_manager)
 
 if __name__ == "__main__":
-        server = ModelServer(address=("localhost", 7002), authkey=b"moe_model_key")
+        port = int(sys.argv[1]) if len(sys.argv) > 1 else 7002
+        print(f"Starting model server on port {port}")
+        server = ModelServer(address=("localhost", port), authkey=b"moe_model_key")
         server.get_server().serve_forever()
