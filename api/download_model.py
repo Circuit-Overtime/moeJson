@@ -1,19 +1,15 @@
 import os
 from huggingface_hub import snapshot_download
 
-def download_qwen_0_5b():
-    MODEL_ID = "Qwen/Qwen2.5-0.5B-Instruct"
+def download_phi35_mini():
+    MODEL_ID = "microsoft/Phi-3.5-mini-instruct"
     CACHE_DIR = "models"
-    MODEL_PATH = os.path.join(CACHE_DIR, "qwen2.5-0.5b-instruct")
-    
-    print(f"🚀 Starting Qwen2.5-0.5B-Instruct model download...")
-    print(f"Model ID: {MODEL_ID}")
-    print(f"Save path: {MODEL_PATH}")
-    
+    MODEL_PATH = os.path.join(CACHE_DIR, "phi-3.5-mini")
+
+    print(f"🚀 Downloading: {MODEL_ID}")
     os.makedirs(CACHE_DIR, exist_ok=True)
 
     try:
-        print("\n📥 Downloading model files...")
         local_dir = snapshot_download(
             repo_id=MODEL_ID,
             cache_dir=CACHE_DIR,
@@ -21,21 +17,18 @@ def download_qwen_0_5b():
             local_dir_use_symlinks=False,
             resume_download=True,
         )
-        
-        print(f"\n✅ Download complete!")
-        print(f"Model saved to: {local_dir}")
 
-        print("\n🔍 Listing downloaded files:")
+        print("\n✅ Download finished!")
+        print("Saved to:", local_dir)
+        print("\nFiles:")
         for f in os.listdir(local_dir):
-            print("  •", f)
-
-        print("\n✨ Model is ready!")
+            print(" •", f)
         return True
-    
+
     except Exception as e:
-        print(f"\n❌ Error downloading model: {e}")
+        print("\n❌ Error:", e)
         return False
 
 
 if __name__ == "__main__":
-    download_qwen_0_5b()
+    download_phi35_mini()
